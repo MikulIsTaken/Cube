@@ -1,0 +1,4 @@
+export const COLORS = {
+    U: 0xffffff, D: 0xffd500, F: 0x009e60,
+    B: 0x0051ba, R: 0xc41e3a, L: 0xff5800
+};

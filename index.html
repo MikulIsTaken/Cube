@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolveShow - Rubik's Cube Visualizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="styles/global.css">
+    
+</head>
+
+<body class="text-gray-100 font-sans antialiased">
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- Interaction Viewports (Dynamically populated based on mode) -->
+    <div id="viewports-container" style="width: 100vw; height: 100vh;"></div>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer">
+
+        <!-- Global Mode Switcher -->
+        <div class="absolute top-6 left-6 z-20 pointer-events-none flex">
+            <div class="glass-panel pointer-events-auto flex items-center gap-2 py-2 px-3 rounded-full shadow-lg">
+                <span class="text-xs font-bold uppercase tracking-widest text-gray-400 mr-2">Mode</span>
+                <button id="tab-single"
+                    class="px-4 py-1.5 rounded-full bg-blue-600 text-white font-bold text-sm transition-colors shadow-md">Single
+                    Cube</button>
+                <button id="tab-compare"
+                    class="px-4 py-1.5 rounded-full bg-transparent hover:bg-white/10 text-gray-300 font-bold text-sm transition-colors">Compare
+                    Methods</button>
+            </div>
+        </div>
+
+        <!-- ================= SINGLE MODE UI ================= -->
+        <div id="ui-single"
+            class="w-full h-full flex flex-col justify-between mt-16 transition-opacity duration-300 pointer-events-none">
+            <!-- Top Controls -->
+            <div class="flex justify-between items-start w-full pointer-events-none">
+                <div class="glass-panel pointer-events-auto flex flex-col gap-3 w-max">
+                    <h1
+                        class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+                        SolveShow</h1>
+
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-400 uppercase tracking-wider">Order</label>
+                        <select id="cube-order"
+                            class="bg-gray-800 text-sm rounded px-2 py-1 border border-gray-600 outline-none focus:border-blue-500">
+                            <option value="2">2x2</option>
+                            <option value="3" selected>3x3</option>
+                            <option value="4">4x4</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-400 uppercase tracking-wider">Solve Mode</label>
+                        <select id="solve-method"
+                            class="bg-gray-800 text-sm rounded px-2 py-1 border border-gray-600 outline-none focus:border-blue-500 w-48">
+                            <option value="undo">Step-by-Step Undo</option>
+                            <option value="fast">Fast Rewind</option>
+                            <option value="instant">Instant Snap</option>
+                            <option disabled>──────────</option>
+                            <option value="lbl">Beginner LBL (Demo)</option>
+                            <option value="cfop">CFOP (Demo)</option>
+                            <option value="roux">Roux (Demo)</option>
+                            <option value="zz">ZZ (Demo)</option>
+                            <option value="petrus">Petrus (Demo)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="glass-panel pointer-events-auto flex flex-col items-end gap-2">
+                    <div class="text-right">
+                        <div class="text-xs text-gray-400 uppercase tracking-wider">Current Move</div>
+                        <div id="single-current-move" class="text-3xl font-mono font-bold text-blue-400">-</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-gray-400 uppercase tracking-wider">Queue</div>
+                        <div id="single-queue-count" class="text-lg font-mono">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase Indicator -->
+            <div class="flex justify-center w-full pointer-events-none">
+                <div id="single-phase-indicator"
+                    class="glass-panel hidden pointer-events-auto text-center transform scale-110 transition-all duration-300">
+                    <div class="text-sm text-gray-400 uppercase tracking-wider mb-1">Algorithmic Stage</div>
+                    <div id="single-phase-text" class="text-xl font-bold text-emerald-400">Cross</div>
+                </div>
+            </div>
+
+            <div class="w-full flex flex-col items-center">
+                <!-- Hint for Manual Dragging -->
+                <div class="flex justify-center mb-3 pointer-events-none">
+                    <div
+                        class="bg-blue-900/60 text-blue-300 text-[10px] uppercase tracking-widest px-4 py-1.5 rounded-full border border-blue-500/30 flex items-center gap-2 shadow-lg backdrop-blur-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122">
+                            </path>
+                        </svg>
+                        Drag corners, edges, or centers to turn layers
+                    </div>
+                </div>
+
+                <!-- Bottom Controls -->
+                <div class="glass-panel pointer-events-auto flex flex-col gap-4 max-w-2xl mx-auto w-full mb-4">
+                    <div class="flex justify-between items-center gap-4">
+                        <button id="btn-scramble"
+                            class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded transition-colors flex-1 shadow-lg shadow-blue-900/30">
+                            Scramble
+                        </button>
+                        <button id="btn-solve"
+                            class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded transition-colors flex-1 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+                            Solve
+                        </button>
+                        <button id="btn-pause"
+                            class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition-colors w-24">
+                            Pause
+                        </button>
+                        <button id="btn-reset"
+                            class="bg-red-900 hover:bg-red-800 text-white font-bold py-2 px-4 rounded transition-colors flex-1">
+                            Reset
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <label class="text-xs text-gray-400 uppercase tracking-wider whitespace-nowrap">Anim
+                            Speed</label>
+                        <input type="range" id="speed-slider" min="0.1" max="1.5" step="0.1" value="0.4"
+                            class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                        <span id="speed-val" class="text-xs font-mono w-8 text-right">0.4s</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= COMPARE MODE UI ================= -->
+        <div id="ui-compare"
+            class="hidden w-full h-full flex flex-col mt-12 transition-opacity duration-300 pointer-events-none">
+            <!-- Left Setup Panel -->
+            <div class="glass-panel pointer-events-auto w-[320px] flex flex-col gap-4 absolute top-24 left-6 z-30">
+                <div>
+                    <h2 class="text-xl font-bold text-purple-400">Multi-Method Compare</h2>
+                    <p class="text-xs text-gray-400 mt-1">Select 2-3 methods to race on the current scrambled state.</p>
+                </div>
+
+                <div class="bg-gray-900/50 p-3 rounded border border-gray-700">
+                    <div class="text-[10px] uppercase text-gray-400 mb-2 font-bold tracking-widest">Select Methods</div>
+                    <div class="flex flex-col gap-1.5">
+                        <label
+                            class="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-1 rounded transition-colors">
+                            <input type="checkbox" value="cfop"
+                                class="compare-method-cb w-4 h-4 rounded text-purple-600" checked>
+                            <span class="text-sm">CFOP (Fridrich)</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-1 rounded transition-colors">
+                            <input type="checkbox" value="roux"
+                                class="compare-method-cb w-4 h-4 rounded text-purple-600" checked>
+                            <span class="text-sm">Roux</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-1 rounded transition-colors">
+                            <input type="checkbox" value="lbl"
+                                class="compare-method-cb w-4 h-4 rounded text-purple-600">
+                            <span class="text-sm">Beginner (LBL)</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-1 rounded transition-colors">
+                            <input type="checkbox" value="zz" class="compare-method-cb w-4 h-4 rounded text-purple-600">
+                            <span class="text-sm">ZZ Method</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-1 rounded transition-colors">
+                            <input type="checkbox" value="petrus"
+                                class="compare-method-cb w-4 h-4 rounded text-purple-600">
+                            <span class="text-sm">Petrus Method</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <label
+                        class="flex items-center justify-between text-sm cursor-pointer p-2 bg-gray-800/50 rounded border border-gray-700 hover:bg-gray-800 transition-colors">
+                        <span>Sync Manual Rotations</span>
+                        <input type="checkbox" id="sync-rotations-cb" checked class="w-4 h-4">
+                    </label>
+                </div>
+
+                <button id="btn-create-compare"
+                    class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded transition-colors shadow-lg shadow-blue-900/30">
+                    Initialize Compare View
+                </button>
+
+                <!-- Action Buttons For the Compare Scene -->
+                <div class="flex gap-2 pt-3 border-t border-gray-700">
+                    <button id="btn-compare-scramble"
+                        class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded transition-colors flex-1 text-sm shadow-md opacity-50 cursor-not-allowed"
+                        disabled>
+                        Scramble
+                    </button>
+                    <button id="btn-compare-solve"
+                        class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded transition-colors flex-1 text-sm shadow-md opacity-50 cursor-not-allowed"
+                        disabled>
+                        Solve All
+                    </button>
+                    <button id="btn-compare-reset"
+                        class="bg-red-900 hover:bg-red-800 text-white font-bold py-2 rounded transition-colors w-16 text-sm opacity-50 cursor-not-allowed"
+                        disabled>
+                        Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- Compare Results Banner -->
+            <div id="compare-results-banner"
+                class="absolute bottom-6 left-1/2 transform -translate-x-1/2 glass-panel hidden pointer-events-auto z-40 flex items-center gap-6 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                <div class="text-lg font-bold text-white flex items-center gap-2">
+                    <span>🏁</span> Compare Complete!
+                </div>
+                <div class="flex gap-4">
+                    <div class="bg-emerald-900/60 px-3 py-1.5 rounded border border-emerald-600 shadow-inner">
+                        <span
+                            class="text-[10px] text-emerald-300 uppercase tracking-widest block font-bold mb-0.5">Fastest
+                            Time</span>
+                        <span id="res-fastest" class="font-mono font-bold text-white text-md">CFOP (3.4s)</span>
+                    </div>
+                    <div class="bg-blue-900/60 px-3 py-1.5 rounded border border-blue-600 shadow-inner">
+                        <span class="text-[10px] text-blue-300 uppercase tracking-widest block font-bold mb-0.5">Fewest
+                            Moves</span>
+                        <span id="res-fewest" class="font-mono font-bold text-white text-md">Roux (42 moves)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+
+</body>
+
+</html>
